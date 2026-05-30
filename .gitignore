@@ -1,0 +1,30 @@
+# Resultados: modelos/métricas/figuras são versionados; logs do TensorBoard não
+# (os nomes dos arquivos de log embutem o hostname da máquina).
+results/logs/
+
+# Amostras geradas a partir do dataset (não redistribuir imagens do EuroSAT)
+sample_images/
+
+# Cache de datasets (fica em ~/tensorflow_datasets por padrão)
+tensorflow_datasets/
+*.tfrecord
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# Jupyter
+.ipynb_checkpoints/
+*.ipynb_checkpoints
+
+# Sistema
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+.claude
