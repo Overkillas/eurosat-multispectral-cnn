@@ -24,6 +24,54 @@ Usar todas as 13 bandas deu o melhor resultado, confirmando a hipótese — mas 
 
 ---
 
+## Arquitetura da CNN
+
+CNN convolucional clássica, **idêntica nos três experimentos** — só muda o número de canais de entrada (3, 4 ou 13). Definida em [`src/models.py`](src/models.py) (`build_cnn`).
+
+São **3 blocos convolucionais** com filtros crescentes (32 → 64 → 128). Cada bloco tem **dois** `Conv2D` 3×3 (`padding='same'`, sem bias) seguidos de `BatchNormalization` + `ReLU`, e termina com `MaxPooling2D` 2×2 que reduz a resolução pela metade. No topo, `GlobalAveragePooling2D` (em vez de `Flatten`), `Dropout(0.3)` e uma `Dense` softmax de 10 classes.
+
+```
+Input (64 × 64 × C)                              C = 3 (A) · 4 (B) · 13 (C)
+│
+├─ Bloco 1   Conv2D(32, 3×3) → BN → ReLU
+│            Conv2D(32, 3×3) → BN → ReLU → MaxPool 2×2   →  32 × 32 × 32
+│
+├─ Bloco 2   Conv2D(64, 3×3) → BN → ReLU
+│            Conv2D(64, 3×3) → BN → ReLU → MaxPool 2×2   →  16 × 16 × 64
+│
+├─ Bloco 3   Conv2D(128, 3×3) → BN → ReLU
+│            Conv2D(128, 3×3) → BN → ReLU → MaxPool 2×2  →   8 ×  8 × 128
+│
+├─ GlobalAveragePooling2D                                →  128
+├─ Dropout(0.3)
+└─ Dense(10, softmax, float32)                           →  10
+```
+
+| Estágio | Saída (modelo C) | Parâmetros |
+|---------|------------------|-----------:|
+| Bloco 1 (2× Conv32 + BN) | 32 × 32 × 32 | 13.216 |
+| Bloco 2 (2× Conv64 + BN) | 16 × 16 × 64 | 55.808 |
+| Bloco 3 (2× Conv128 + BN) | 8 × 8 × 128 | 222.208 |
+| GAP + Dropout | 128 | 0 |
+| Dense (softmax) | 10 | 1.290 |
+| **Total** | | **~292 mil** |
+
+O nº de parâmetros é quase idêntico entre os modelos — só a **1ª convolução** muda com os canais de entrada: **A 289.642 · B 289.930 · C 292.522**. Isso reforça a comparação justa: a diferença de acurácia vem das bandas, não do tamanho do modelo.
+
+**Decisões de projeto (o porquê):**
+- **Dois Conv por bloco antes do pooling** — amplia o campo receptivo e captura texturas antes de reduzir a resolução.
+- **BatchNormalization** — estabiliza e acelera o treino, permitindo taxa de aprendizado maior.
+- **Conv sem bias** — o bias é redundante quando seguido de BN.
+- **GlobalAveragePooling em vez de Flatten + Dense grande** — corta drasticamente os parâmetros (menos overfitting) e independe da resolução espacial.
+- **Dropout(0.3)** antes da saída — regularização.
+- **Dense final em `float32`** — estabilidade numérica do softmax sob *mixed precision* (`float16`) na GPU.
+
+**Treino:** otimizador **Adam** (lr `1e-3`), perda **sparse categorical crossentropy**, **mixed precision** (`mixed_float16`) na GPU. Callbacks: `EarlyStopping` (paciência 10, restaura melhores pesos), `ReduceLROnPlateau` (fator 0.5, paciência 5) e `ModelCheckpoint` (melhor `val_accuracy`). Teto de 50 épocas — o early stopping costuma parar antes.
+
+**Data augmentation** (só no treino): flips horizontal/vertical e rotações de 90° — válidos para imagens aéreas. Sem rotação contínua nem *color jitter*, que alterariam as assinaturas espectrais.
+
+---
+
 ## Pré-requisitos
 
 - **GPU NVIDIA** + drivers atualizados (o treino usa GPU; roda em CPU, porém lento).
