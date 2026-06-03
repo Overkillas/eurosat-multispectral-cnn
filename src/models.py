@@ -22,7 +22,7 @@ def _conv_block(x, filters: int):
 
 
 def build_cnn(input_shape, num_classes: int = config.NUM_CLASSES) -> tf.keras.Model:
-    """CNN clássica (~500k params): 3 blocos conv + GAP + Dropout + softmax.
+    """CNN clássica (~290k params): 3 blocos conv + GAP + Dropout + softmax.
 
     A camada final é forçada a float32 para manter estabilidade numérica
     quando mixed precision (float16) está ativada na GPU.
